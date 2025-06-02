@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Auto de Receção Provisória</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+ 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" xintegrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        body { font-family: 'Arial', sans-serif; background-color: #f3f4f6; }
+        .app-screen-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+        .a4-page-container { width: 210mm; height: 297mm; background-color: white; margin: 0; overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; }
+        .preview-wrapper-onscreen { margin: 1rem auto; width: fit-content; background-color: transparent; }
+        .scaled-a4-preview-onscreen { box-shadow: 0 0 10px rgba(0,0,0,0.1); transform: scale(0.8); transform-origin: top center; }
+        
+        /* Estilos da Capa */
+        .cover-page { font-size: 12pt; }
+        .cover-content-wrapper { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20mm 15mm; }
+        .cover-main-title-block { text-align: center; width: 100%; margin-bottom: 15mm; }
+        .cover-main-title-block h2 { font-size: 14pt; font-weight: bold; border: 2px solid black; padding: 5mm 10mm; display: inline-block; margin-bottom: 10mm; }
+        .cover-main-title-block .editable-title-field { font-size: 14pt; font-weight: bold; text-align: center; border: none; border-bottom: 1px dashed #ccc; padding: 3mm 0; margin-bottom: 8mm; display: block; width: 100%; max-width: 160mm; margin-left: auto; margin-right: auto; background-color: transparent; }
+        .cover-main-title-block .editable-title-field::placeholder { color: #999; font-weight: normal; }
+        .cover-date-block { text-align: center; width: auto; margin-top: 20mm; }
+        .cover-date-block .date-text { font-size: 12pt; font-weight: bold; }
+        
+        /* Estilos da Página de Texto do Auto de Receção */
+        .text-page-content {
+            padding: 20mm 25mm; 
+            font-size: 12pt; 
+            line-height: 1.4; 
+            margin-top: auto; 
+            margin-bottom: auto; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+        }
+        .text-page-content h3 { 
+            text-align: center;
+            font-size: 14pt; 
+            font-weight: bold;
+            margin-bottom: 10mm; 
+            line-height: 1.5; 
+        }
+        .text-page-content p {
+            text-align: justify;
+            margin-bottom: 1.5em; 
+            text-indent: 10mm; 
+        }
+         .text-page-content p:last-child {
+            margin-bottom: 0; 
+        }
+
+        /* Estilos das Páginas de Fotos */
+        .photo-page-content-wrapper { flex-grow: 1; display: flex; flex-direction: column; padding: 0 15mm; }
+        .photo-page { padding-top: 10mm; }
+        .photo-page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8mm; border-bottom: 1px solid #ccc; padding-bottom: 5mm; }
+        .photo-page-logo { font-size: 8pt; color: #555; border: 1px solid #eee; padding: 5px; min-width: 60mm; }
+        .photo-page-logo .logo-main-text { font-weight: bold; font-size: 10pt;}
+        .photo-page-logo .logo-sub-text { font-size: 6pt;}
+        .photo-page-logo.client { text-align: left; }
+        .photo-page-logo.management { text-align: right; }
+        
+        .photo-grid { display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 7mm; flex-grow: 1; }
+        .photo-item { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .photo-item-placeholder { width: 88mm; height: 66mm; background-color: #e0e0e0; border: 1px solid #ccc; display: flex; justify-content: center; align-items: center; overflow: hidden; margin-bottom: 2mm; }
+        .photo-item-placeholder img { width: 100%; height: 100%; object-fit: contain; }
+        .photo-item textarea { width: 88mm; border: 1px solid #ccc; padding: 2mm; font-size: 9pt; resize: none; min-height: 18mm; box-sizing: border-box; text-align: center; }
+        .photo-page-footer { text-align: center; font-size: 10pt; font-weight: bold; color: #333; padding: 8mm 15mm; border-top: 1px solid #ccc; margin-top: auto; width: 100%; box-sizing: border-box; flex-shrink: 0; }
+        
+        .control-group { @apply mb-6 p-4 bg-white rounded-lg shadow-lg; }
+        .main-controls { @apply grid grid-cols-1 md:grid-cols-2 gap-6; } 
+        #loading-indicator { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); z-index: 10001; display: none; justify-content: center; align-items: center; color: white; font-size: 1.5rem; }
+        
+        @media print {
+            body, html { margin: 0 !important; padding: 0 !important; background-color: white !important; width: 210mm; height: auto; -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }
+            .app-screen-container > header, .app-screen-container > .main-controls, .app-screen-container > .control-group button, .app-screen-container > footer, #loading-indicator, .preview-wrapper-onscreen { display: none !important; }
+            body > *:not(#preview-area-for-print) { display: none !important; }
+            #preview-area-for-print { display: block !important; margin: 0 !important; padding: 0 !important; width: 210mm !important; }
+            #preview-area-for-print > div { width: 210mm !important; height: 297mm !important; overflow: hidden !important; page-break-after: always !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; }
+            #preview-area-for-print > div:last-child { page-break-after: avoid !important; }
+            #preview-area-for-print .a4-page-container { width: 100% !important; height: 100% !important; display: flex !important; flex-direction: column !important; box-shadow: none !important; border: none !important; }
+            
+            #preview-area-for-print .cover-page .cover-content-wrapper { flex-grow: 1 !important; display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; padding-top: 30mm !important; padding-bottom: 30mm !important; }
+            #preview-area-for-print .cover-page .cover-main-title-block .editable-title-field { border: none !important; padding: 3mm 0 !important; background-color: transparent !important; color: black !important; }
+
+            #preview-area-for-print .text-page-content { 
+                margin-top: auto !important; 
+                margin-bottom: auto !important; 
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+            }
+            #preview-area-for-print .text-page-content h3 { line-height: 1.5 !important; }
+            #preview-area-for-print .text-page-content p { text-align: justify !important; margin-bottom: 1.5em !important; text-indent: 10mm !important; }
+
+
+            #preview-area-for-print .photo-page .photo-page-content-wrapper { flex-grow: 1 !important; display: flex !important; flex-direction: column !important; }
+            #preview-area-for-print .photo-page .photo-grid { flex-grow: 1 !important; grid-template-rows: repeat(2, minmax(0, 1fr)) !important; }
+            #preview-area-for-print .photo-page .photo-item { justify-content: center !important; }
+            #preview-area-for-print .photo-page .photo-page-footer { margin-top: auto !important; flex-shrink: 0 !important; }
+            #preview-area-for-print .photo-item textarea { border: none !important; background-color: white !important; color: black !important; padding: 2mm !important; }
+            .photo-item { page-break-inside: avoid !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-screen-container">
+        <div id="root"></div>
+    </div>
+    <div id="preview-area-for-print" style="display: none;"></div>
+    <div id="loading-indicator">A preparar para impressão...</div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const PHOTO_WIDTH_MM = 88; 
+        const PHOTO_HEIGHT_MM = 66; 
+
+        const projectFixedDetails = {
+            clientName: "Tivoli", 
+            clientSubtext: "Orbirio Estela",
+            managementName: "Cotefis",
+            managementSubtext: "GESTÃO DE PROJECTOS SA",
+            contractorName: "Pendências - Kosowood" 
+        };
+
+        const CoverPage = ({ reportDate, tipologia, numero, onTipologiaChange, onNumeroChange }) => {
+            const formattedDate = reportDate ? reportDate.toUpperCase() : "MÊS E ANO";
+            
+            return (
+                <div className="a4-page-container cover-page">
+                    <div className="cover-content-wrapper">
+                        <div className="cover-main-title-block">
+                            <h2>Auto de Receção Provisória</h2>
+                            <input 
+                                type="text" 
+                                className="editable-title-field"
+                                value={tipologia} 
+                                onChange={onTipologiaChange} 
+                                placeholder="Tipologia" 
+                            />
+                            <input 
+                                type="text" 
+                                className="editable-title-field"
+                                value={numero} 
+                                onChange={onNumeroChange} 
+                                placeholder="Número" 
+                            />
+                        </div>
+                        <div className="cover-date-block">
+                            <p className="date-text">DATA = {formattedDate}</p>
+                        </div>
+                    </div>
+                     <div style={{height: '30mm', flexShrink: 0, marginTop: 'auto'}}></div> 
+                </div>
+            );
+        };
+
+        const ProvisionalAcceptanceTextPage = ({ reportDate, tipologia, numero }) => {
+            let day = "___";
+            let monthName = "___";
+            let year = "dois mil e vinte e cinco"; 
+
+            if (reportDate) {
+                const dateParts = reportDate.split(" de ");
+                if (dateParts.length === 3) {
+                    day = dateParts[0];
+                    monthName = dateParts[1];
+                    year = dateParts[2]; 
+                }
+            }
+            
+            const tipologiaValue = tipologia || "___";
+            const numeroValue = numero || "___";
+
+            return (
+                <div className="a4-page-container"> 
+                    <div className="text-page-content">
+                        <h3>Auto de Receção Provisória</h3>
+                        <p>
+                            Aos {day} dias do mês de {monthName} do ano de {year}, no local onde foram executados os 
+                            trabalhos relativos ao Módulo: {tipologiaValue} Número: {numeroValue}, da Empreitada Orbirio Tivoli, 
+                            adjudicada à empresa Kosowood Engenharia, estiveram presentes os representantes da Kosowood, 
+                            da Cotefis e da Orbirio Tivoli.
+                        </p>
+                        <p>
+                            Após a verificação de todos os trabalhos realizados, constatou-se que os mesmos foram 
+                            executados em conformidade com o Projeto, com os regulamentos em vigor e com as regras 
+                            da boa prática técnica, encontrando-se, por conseguinte, em condições de serem 
+                            recebidos provisoriamente.
+                        </p>
+                        <p>
+                            No entanto, foram identificadas pendências relacionadas com o contrato principal, 
+                            bem como trabalhos complementares e correções que ainda se encontram por concluir. 
+                            Tais situações estão devidamente registadas nos artigos infra e serão objeto de 
+                            acompanhamento e verificação em momento oportuno.
+                        </p>
+                        <p>
+                            Assim, e não obstante as pendências referidas, tendo em consideração o estado geral 
+                            dos trabalhos, deliberou-se considerar a empreitada em condições de ser 
+                            provisoriamente aceite.
+                        </p>
+                        <p>
+                            Nada mais havendo a tratar, lavrou-se o presente auto, que vai ser assinado 
+                            pelas partes intervenientes.
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+
+        const PhotoPage = ({ images, reportDate, onCaptionChange }) => {
+            const displayImages = [...images];
+            while (displayImages.length < 4) { displayImages.push(null); }
+            
+            return (
+                <div className="a4-page-container photo-page"> 
+                    <div className="photo-page-content-wrapper"> 
+                        <div className="photo-page-header">
+                             <div className="photo-page-logo client">
+                                <div className="logo-main-text">{projectFixedDetails.clientName}</div>
+                                {projectFixedDetails.clientSubtext && <div className="logo-sub-text">{projectFixedDetails.clientSubtext}</div>}
+                            </div>
+                            <div className="photo-page-logo management">
+                                <div className="logo-main-text">{projectFixedDetails.managementName}</div>
+                                {projectFixedDetails.managementSubtext && <div className="logo-sub-text">{projectFixedDetails.managementSubtext}</div>}
+                            </div>
+                        </div>
+                        <div className="photo-grid">
+                            {displayImages.map((img, index) => (
+                                <div key={img ? img.id : `empty-${index}`} className="photo-item">
+                                    <div className="photo-item-placeholder" style={{ width: `${PHOTO_WIDTH_MM}mm`, height: `${PHOTO_HEIGHT_MM}mm`}}>{img && <img src={img.src} alt={`Foto ${index + 1}`} />}</div>
+                                    <textarea value={img ? img.caption : ""} onChange={(e) => img && onCaptionChange(img.id, e.target.value)} placeholder="TEXTO EDITAVEL" rows="3" disabled={!img} style={{textAlign: 'center'}}/>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="photo-page-footer">{projectFixedDetails.contractorName}</div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [reportDate, setReportDate] = useState(""); 
+            const [tipologia, setTipologia] = useState("");
+            const [numero, setNumero] = useState("");
+            const [uploadedImages, setUploadedImages] = useState([]); 
+            const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+            
+            const handleDateChange = (e) => {
+                const dateValue = e.target.value; 
+                if (dateValue) {
+                    const [year, month, day] = dateValue.split('-');
+                    if (year && month && day) { 
+                        const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+                        setReportDate(`${day} de ${monthNames[parseInt(month, 10) - 1]} de ${year}`);
+                    } else { setReportDate(""); }
+                } else { setReportDate(""); }
+            };
+
+            const handleImageUpload = (event) => { const files = Array.from(event.target.files); const newImagesPromises = files.map(file => new Promise((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve({ id: crypto.randomUUID(), src: e.target.result, file: file, caption: "" }); reader.readAsDataURL(file); })); Promise.all(newImagesPromises).then(imgs => setUploadedImages(prev => [...prev, ...imgs])); event.target.value = null;  };
+            const handleCaptionChange = (imageId, newCaption) => setUploadedImages(prevImages => prevImages.map(img => img.id === imageId ? { ...img, caption: newCaption } : img));
+
+            const photosPerPage = 4;
+            const photoPagesData = [];
+            for (let i = 0; i < uploadedImages.length; i += photosPerPage) { photoPagesData.push(uploadedImages.slice(i, i + photosPerPage)); }
+            
+            const showCustomAlert = (message) => { const existingModal = document.getElementById('customAlertModal'); if (existingModal) existingModal.remove(); const modal = document.createElement('div'); modal.id = 'customAlertModal'; modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 10002; padding: 15px;'; const modalContent = document.createElement('div'); modalContent.style.cssText = 'background-color: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px;'; modalContent.innerHTML = `<p style="margin-bottom: 15px; font-size: 1.1rem;">${message}</p><button id="closeModalBtn" style="padding: 10px 20px; background-color: #4f46e5; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem;">OK</button>`; modal.appendChild(modalContent); document.body.appendChild(modal); document.getElementById('closeModalBtn').onclick = () => document.body.removeChild(modal);};
+
+            const handlePrintReport = () => { 
+                if (!reportDate && !tipologia && !numero && uploadedImages.length === 0) {
+                     showCustomAlert("Por favor, preencha pelo menos um campo ou carregue imagens antes de imprimir.");
+                     return;
+                }
+                const loadingIndicator = document.getElementById('loading-indicator'); 
+                loadingIndicator.style.display = 'flex'; 
+                setIsPreparingPrint(true); 
+                const printArea = document.getElementById('preview-area-for-print'); 
+                printArea.innerHTML = ''; 
+                
+                const coverDiv = document.createElement('div'); 
+                printArea.appendChild(coverDiv); 
+                ReactDOM.render(<CoverPage reportDate={reportDate} tipologia={tipologia} numero={numero} onTipologiaChange={()=>{}} onNumeroChange={()=>{}} />, coverDiv); 
+                
+                const textPageDiv = document.createElement('div');
+                printArea.appendChild(textPageDiv);
+                ReactDOM.render(<ProvisionalAcceptanceTextPage reportDate={reportDate} tipologia={tipologia} numero={numero} />, textPageDiv);
+
+                photoPagesData.forEach((pageImages, index) => { 
+                    const pageDiv = document.createElement('div'); 
+                    printArea.appendChild(pageDiv); 
+                    ReactDOM.render(<PhotoPage images={pageImages} reportDate={reportDate} onCaptionChange={() => {}} />, pageDiv); 
+                }); 
+                
+                setTimeout(() => { 
+                    try { window.print(); } 
+                    catch (error) { console.error("Erro ao tentar imprimir:", error); showCustomAlert("Ocorreu um erro ao tentar iniciar a impressão. Verifique a consola."); } 
+                    finally { 
+                        loadingIndicator.style.display = 'none'; 
+                        setIsPreparingPrint(false); 
+                        while (printArea.firstChild) { 
+                            ReactDOM.unmountComponentAtNode(printArea.firstChild); 
+                            printArea.removeChild(printArea.firstChild); 
+                        } 
+                    } 
+                }, 300);  
+            };
+
+            return (
+                <React.Fragment>
+                    <header className="text-center my-8">
+                        <h1 className="text-3xl md:text-4xl font-bold text-indigo-700">Gerador de Auto de Receção Provisória</h1>
+                        <p className="text-md md:text-lg text-gray-600 mt-2">Preencha os campos, carregue as fotos e imprima/salve em PDF!</p>
+                    </header>
+
+                    <div className="main-controls control-group"> 
+                        <div>
+                            <label htmlFor="reportDateInput" className="text-lg font-medium">Data do Auto:</label>
+                            <input type="date" id="reportDateInput" onChange={handleDateChange} className="w-full mt-1 p-2 border border-gray-300 rounded-md shadow-sm" />
+                            {reportDate && <p className="mt-2 text-sm text-gray-500">Data formatada: {reportDate}</p>}
+                        </div>
+                        <div>
+                            <label htmlFor="imageUploadInput" className="text-lg font-medium">Carregar Imagens (Opcional):</label>
+                            <input type="file" id="imageUploadInput" multiple accept="image/*" onChange={handleImageUpload} className="w-full mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200" />
+                            <p className="mt-1 text-xs text-gray-500">Pode selecionar múltiplas imagens.</p>
+                        </div>
+                    </div>
+                    
+                    { (reportDate || tipologia || numero || uploadedImages.length > 0) &&
+                        <div className="control-group text-center">
+                             <button onClick={handlePrintReport} disabled={isPreparingPrint} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed text-lg">
+                                {isPreparingPrint ? 'A preparar...' : 'Imprimir / Salvar PDF'}
+                            </button>
+                        </div>
+                    }
+                    
+                    <div id="preview-area-onscreen" className="mt-8">
+                        <div className="preview-wrapper-onscreen">
+                            <div className="scaled-a4-preview-onscreen">
+                                <CoverPage 
+                                    reportDate={reportDate} 
+                                    tipologia={tipologia} 
+                                    numero={numero}
+                                    onTipologiaChange={(e) => setTipologia(e.target.value)}
+                                    onNumeroChange={(e) => setNumero(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        { (reportDate || tipologia || numero) && 
+                            <div className="preview-wrapper-onscreen">
+                                <div className="scaled-a4-preview-onscreen">
+                                    <ProvisionalAcceptanceTextPage 
+                                        reportDate={reportDate}
+                                        tipologia={tipologia}
+                                        numero={numero}
+                                    />
+                                </div>
+                            </div>
+                        }
+
+                        {photoPagesData.map((pageImages, index) => (
+                            <div key={`preview-page-${index}`} className="preview-wrapper-onscreen">
+                                <div className="scaled-a4-preview-onscreen">
+                                    <PhotoPage images={pageImages} reportDate={reportDate} onCaptionChange={handleCaptionChange} />
+                                </div>
+                            </div>
+                        ))}
+                        
+                        { !reportDate && !tipologia && !numero && uploadedImages.length === 0 && (
+                             <div className="text-center text-gray-500 p-10 border-2 border-dashed border-gray-300 rounded-lg bg-white" style={{minHeight: '200mm'}}>
+                                <p className="text-lg">Preencha os campos da capa ou carregue imagens para visualizar.</p>
+                            </div>
+                        )}
+                    </div>
+                     <footer className="text-center py-8 mt-12 text-gray-500 text-sm">
+                        <p>&copy; {new Date().getFullYear()} Gerador de Documentos. Todos os direitos reservados - LAbreu.</p>
+                    </footer>
+                </React.Fragment>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
